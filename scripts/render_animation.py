@@ -5,94 +5,77 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter, PillowWriter, FuncAnimation
-import numpy as np
 import mujoco
+import numpy as np
+from PIL import Image, ImageDraw
 
-from rusim.patient import PatientMotion
 from rusim.mujoco_backend import make_model
+from rusim.patient import PatientMotion
 
 
-def body_positions(model, data):
-    return np.array(data.xpos[1:])
+def target_pose(t, qref, period):
+    amplitudes=np.array([.22,.30,.24,.34,.20,.28,.24])
+    phases=np.arange(7)*.55
+    q=qref+amplitudes*np.sin(2*np.pi*t/8.0+phases)
+    q[1]+=.10*np.sin(2*np.pi*t/period)
+    q[3]+=.08*np.sin(2*np.pi*t/period+.7)
+    return q
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", default="results/animation")
-    parser.add_argument("--frames", type=int, default=96)
-    parser.add_argument("--fps", type=int, default=12)
-    args = parser.parse_args()
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    model = make_model()
-    data = mujoco.MjData(model)
-    qref = np.array([0.0, 0.5, 0.0, 1.0, 0.0, -1.0, 0.0])
-    data.qpos[:] = qref
-    mujoco.mj_forward(model, data)
-    site_id = model.site("attachment_site").id
-    z0 = float(data.site_xpos[site_id, 2])
-    motion = PatientMotion("liver", 0)
-    times = np.linspace(0.0, 8.0, args.frames)
-    poses = []
-    tool_points = []
-    surfaces = []
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--output-dir",default="results/animation")
+    parser.add_argument("--frames",type=int,default=144)
+    parser.add_argument("--fps",type=int,default=12)
+    args=parser.parse_args()
+    output_dir=Path(args.output_dir)
+    output_dir.mkdir(parents=True,exist_ok=True)
+    model=make_model()
+    data=mujoco.MjData(model)
+    qref=np.array([0.0,0.5,0.0,1.0,0.0,-1.0,0.0])
+    data.qpos[:]=qref
+    data.ctrl[:]=qref
+    mujoco.mj_forward(model,data)
+    site_id=model.site("attachment_site").id
+    z0=float(data.site_xpos[site_id,2])
+    motion=PatientMotion("liver",0)
+    renderer=mujoco.Renderer(model,height=450,width=600)
+    times=np.linspace(0.0,12.0,args.frames)
+    frames=[]
+    tool_points=[]
+    surfaces=[]
+    steps_per_frame=max(1,int(round((times[-1]/max(1,args.frames-1))/model.opt.timestep)))
     for t in times:
-        q = qref + 0.08*np.sin(2*np.pi*t/8.0 + np.arange(7)*0.45)
-        q[1] += 0.04*np.sin(2*np.pi*t/motion.breathing_period)
-        data.qpos[:] = q
-        mujoco.mj_forward(model, data)
-        poses.append(body_positions(model, data))
+        target=target_pose(t,qref,motion.breathing_period)
+        data.ctrl[:]=target
+        for _ in range(steps_per_frame):
+            mujoco.mj_step(model,data)
+        renderer.update_scene(data)
+        frame=renderer.render()
+        image=Image.fromarray(frame)
+        draw=ImageDraw.Draw(image)
+        breathing=float(motion.breathing_displacement(t))
+        draw.rectangle((12,12,440,92),fill=(255,255,255,210))
+        draw.text((24,22),"MuJoCo iiwa 7 R800 dynamic rendering",fill=(20,45,65))
+        draw.text((24,48),f"t={t:.2f} s   breathing displacement={breathing*1000:.2f} mm",fill=(20,45,65))
+        frames.append(np.asarray(image))
         tool_points.append(data.site_xpos[site_id].copy())
-        surfaces.append(z0 - 0.004 + motion.breathing_displacement(t))
-    poses = np.asarray(poses)
-    tool_points = np.asarray(tool_points)
-    surfaces = np.asarray(surfaces)
-
-    fig = plt.figure(figsize=(8, 6), dpi=120)
-    ax = fig.add_subplot(111, projection="3d")
-    ax.set_xlim(-0.9, 0.9)
-    ax.set_ylim(-0.9, 0.9)
-    ax.set_zlim(0.0, 1.5)
-    ax.set_xlabel("x (m)")
-    ax.set_ylabel("y (m)")
-    ax.set_zlabel("z (m)")
-    ax.set_title("KUKA iiwa robotic ultrasound contact under breathing motion")
-    lines = [ax.plot([], [], [], color="#174a6e", linewidth=3)[0]]
-    tool, = ax.plot([], [], [], "o", color="#d95f02", markersize=7)
-    tissue, = ax.plot([], [], [], color="#2ca25f", linewidth=3, label="moving tissue surface")
-    trace, = ax.plot([], [], [], color="#d95f02", linewidth=1.5, alpha=0.8, label="probe trace")
-    force_arrow, = ax.plot([], [], [], color="#8c2d04", linewidth=2, label="contact direction")
-    time_text = ax.text2D(0.03, 0.94, "", transform=ax.transAxes)
-    ax.legend(loc="upper left")
-
+        surfaces.append(z0-0.004+breathing)
+    frames=np.asarray(frames)
+    fig,ax=plt.subplots(figsize=(6,4.5),dpi=100)
+    image_artist=ax.imshow(frames[0])
+    ax.axis("off")
+    ax.set_title("MuJoCo-rendered iiwa motion with respiratory surface input")
     def update(index):
-        data_points = poses[index]
-        parent_points = np.vstack([np.zeros((1, 3)), data_points[:-1]])
-        line_points = np.column_stack([parent_points, data_points]).reshape(-1, 3)
-        line_x = line_points[:, 0]
-        line_y = line_points[:, 1]
-        line_z = line_points[:, 2]
-        lines[0].set_data(line_x, line_y)
-        lines[0].set_3d_properties(line_z)
-        p = tool_points[index]
-        tool.set_data([p[0]], [p[1]])
-        tool.set_3d_properties([p[2]])
-        tissue.set_data([-.65, .65], [0.0, 0.0])
-        tissue.set_3d_properties([surfaces[index], surfaces[index]])
-        history = tool_points[:index+1]
-        trace.set_data(history[:, 0], history[:, 1])
-        trace.set_3d_properties(history[:, 2])
-        force_arrow.set_data([p[0], p[0]], [p[1], p[1]])
-        force_arrow.set_3d_properties([p[2], surfaces[index]])
-        time_text.set_text(f"t = {times[index]:.2f} s   breathing period = {motion.breathing_period:.2f} s")
-        return lines[0], tool, tissue, trace, force_arrow, time_text
-
-    animation = FuncAnimation(fig, update, frames=args.frames, interval=1000/args.fps, blit=False)
-    animation.save(output_dir / "robot_breathing_contact.gif", writer=PillowWriter(fps=args.fps))
-    animation.save(output_dir / "robot_breathing_contact.mp4", writer=FFMpegWriter(fps=args.fps, bitrate=1800))
+        image_artist.set_data(frames[index])
+        return (image_artist,)
+    animation=FuncAnimation(fig,update,frames=len(frames),interval=1000/args.fps,blit=True)
+    animation.save(output_dir/"robot_breathing_contact.gif",writer=PillowWriter(fps=args.fps))
+    animation.save(output_dir/"robot_breathing_contact.mp4",writer=FFMpegWriter(fps=args.fps,bitrate=2200))
     plt.close(fig)
+    np.savez(output_dir/"robot_breathing_contact_trace.npz",
+             time=times,tool_position=np.asarray(tool_points),surface_z=np.asarray(surfaces))
 
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
