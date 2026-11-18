@@ -34,19 +34,40 @@ applicant information before use.
 
 ## Controller metrics
 
+Controllers are impedance, PI, super-twisting, and barrier-Lyapunov
+sliding-mode control (`blsmc`). The BLSMC law maps the force error into the
+finite barrier coordinate
+`xi = log((F-Fmin)/(Fmax-F))`, applies a bounded sliding correction, and keeps
+the requested normal force inside the configured barrier window before the
+separate actuator and safety clamps. This is a simulation controller, not a
+formal safety certificate for hardware.
+
 `results/metrics.csv` reports one row per organ, controller, and seed.
 `rmse`, `mae`, `error_std`, and `p95_abs_error` quantify tracking accuracy and
 tail risk. `overshoot`, `undershoot`, and `settling_time` quantify transient
 behavior. `pct_above_11`, `pct_above_15`, and `time_above_15` quantify force
 exposure. `effort` measures mean squared applied torque norm, while
 `alarm_rate` and `retract_rate` quantify safety-monitor intervention.
-`paired_statistics.csv` compares PI and super-twisting results by matched
-organ/seed with bootstrap intervals and a Wilcoxon test.
+`paired_statistics.csv` compares PI, super-twisting, and BLSMC results by
+matched organ/seed with bootstrap intervals and a Wilcoxon test. The rigorous
+benchmark uses a 1.15 trajectory-difficulty factor: faster abrupt events and
+stronger drift/cough components than the baseline smoke suite.
 
 `results/breathing_validation.csv` reports respiratory period, frequency,
 amplitude, peak-to-peak displacement, peak velocity, and displacement RMS for
 80 deterministic organ/seed cases. The breathing component is a
 non-sinusoidal multi-harmonic surface motion with a randomized 3–5 s period.
+
+Final difficult-trajectory mean RMSE (N), averaged over 10 held-out seeds:
+
+| Organ | Impedance | PI | STA | BLSMC |
+| --- | ---: | ---: | ---: | ---: |
+| Liver | 0.253 | 0.348 | 0.277 | **0.184** |
+| Prostate | 0.666 | **0.507** | 0.598 | 0.643 |
+
+These are simulation-only results; the condition-dependent ranking is why
+phantom calibration and staged hardware validation are part of the proposed
+next phase.
 
 ## Visual outputs
 
@@ -80,3 +101,8 @@ becoming kilonewton artifacts; this is not a measured tissue limit. It is
 still a compact model rather than hardware evidence.
 Results do not
 replace ROS 2, hardware-in-the-loop, calibration, or clinical validation.
+
+The barrier coordinate follows the constrained-output Lyapunov construction
+of Tee, Ge, and Tay, “Barrier Lyapunov Functions for the control of
+output-constrained nonlinear systems,” *Automatica* 45 (2009), 918–927,
+DOI: [10.1016/j.automatica.2008.11.017](https://doi.org/10.1016/j.automatica.2008.11.017).

@@ -9,9 +9,9 @@ from .tissue import TissueModel
 
 TARGET = 10.0
 
-def _surrogate_episode(organ, controller, seed, duration, estimator, safety, fault):
-    motion=PatientMotion(organ,seed); rng=np.random.default_rng(seed+1000)
-    c=Controller(controller); mon=SafetyMonitor(); z=0.; rows=[]; force=0.
+def _surrogate_episode(organ, controller, seed, duration, estimator, safety, fault, trajectory_difficulty=1.0, gains=None):
+    motion=PatientMotion(organ,seed,difficulty=trajectory_difficulty); rng=np.random.default_rng(seed+1000)
+    c=Controller(controller,gains=gains); mon=SafetyMonitor(); z=0.; rows=[]; force=0.
     n=int(duration/.002); k=1000*rng.uniform(.6,1.4)
     for i in range(n):
         t=i*.002; surface=motion.displacement(t); sv=motion.velocity(t)
@@ -52,13 +52,13 @@ def _metrics(rows,organ,controller,seed,estimator,safety,backend,fault):
 
 def _mujoco_episode(organ, controller, seed, duration, estimator, safety, fault,
                     stiffness_scale=1., friction_scale=1., mass_scale=1., torque_noise=1.,
-                    gains=None):
+                    gains=None, trajectory_difficulty=1.0):
     import mujoco
     from .mujoco_backend import make_model
     model=make_model(); model.body_mass[:] *= mass_scale
     model.dof_frictionloss[:] *= friction_scale
     data=mujoco.MjData(model)
-    rng=np.random.default_rng(seed+1000); motion=PatientMotion(organ,seed)
+    rng=np.random.default_rng(seed+1000); motion=PatientMotion(organ,seed,difficulty=trajectory_difficulty)
     c=Controller(controller, gains=gains); mon=SafetyMonitor(); dt=float(model.opt.timestep)
     # Hold a slightly bent posture while the normal axis is controlled by J^T torque.
     # Avoid the vertical home-pose singularity: the paper's probe is
@@ -128,7 +128,9 @@ def run_episode(organ="liver",controller="pi",seed=0,duration=60.,estimator="dyn
     if backend == "mujoco":
         result=_mujoco_episode(organ,controller,seed,duration,estimator,safety,fault,**perturbations)
     elif backend == "surrogate":
-        result=_surrogate_episode(organ,controller,seed,duration,estimator,safety,fault)
+        result=_surrogate_episode(organ,controller,seed,duration,estimator,safety,fault,
+                                  perturbations.get("trajectory_difficulty",1.0),
+                                  perturbations.get("gains"))
     else:
         raise ValueError("backend must be 'mujoco' or 'surrogate'")
     if output:

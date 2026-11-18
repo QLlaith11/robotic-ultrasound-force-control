@@ -7,10 +7,11 @@ PAPER_RANGES_MM = {
 
 class PatientMotion:
     """Paper-calibrated organ-surface motion with an explicit respiratory component."""
-    def __init__(self, organ="liver", seed=0, event_compression=20.0):
+    def __init__(self, organ="liver", seed=0, event_compression=20.0, difficulty=1.0):
         if organ not in PAPER_RANGES_MM: raise ValueError(organ)
         self.organ, self.rng = organ, np.random.default_rng(seed)
         self.event_compression = event_compression
+        self.difficulty = float(difficulty)
         self.breathing_period = self.rng.uniform(3.0, 5.0)
         self.breathing_amplitude = self.rng.uniform(*PAPER_RANGES_MM[organ]["regular"]) * 1e-3
         self.drift = self.rng.uniform(*PAPER_RANGES_MM[organ]["drift"]) * 1e-3
@@ -31,9 +32,9 @@ class PatientMotion:
     def displacement(self, t):
         b = self.breathing_displacement(t)
         cardiac = 0.00025*np.sin(2*np.pi*1.1*t)
-        drift = self.drift * min(t/60.0, 1.0) * 0.35
-        shift = self.shift * (1.0 - np.exp(-max(t-self.shift_time, 0.0)/.08))
-        cough = (0.004*np.sin(2*np.pi*4*t) * np.exp(-((t-(self.shift_time+2))/0.25)**2)
+        drift = self.drift * min(t/60.0, 1.0) * 0.35 * self.difficulty
+        shift = self.shift * (1.0 - np.exp(-max(t-self.shift_time, 0.0)/(0.08/self.difficulty)))
+        cough = (0.004*self.difficulty*np.sin(2*np.pi*4*t) * np.exp(-((t-(self.shift_time+2))/0.25)**2)
                  if self.organ == "prostate" else 0.0)
         return b + cardiac + drift + shift + cough
 

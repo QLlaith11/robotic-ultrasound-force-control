@@ -8,6 +8,10 @@ class Controller:
         self.ki = float(gains.get("ki", .15))
         self.k1 = float(gains.get("k1", .8))
         self.k2 = float(gains.get("k2", 2.0))
+        self.barrier_margin = float(gains.get("barrier_margin", 4.0))
+        self.barrier_gain = float(gains.get("barrier_gain", 2.0))
+        self.switch_gain = float(gains.get("switch_gain", 1.5))
+        self.boundary_layer = float(gains.get("boundary_layer", .08))
         self.integral, self.nu = 0., 0.
     def command(self, force, dt, surface_velocity=0., safe=False):
         e = self.target - force
@@ -19,6 +23,13 @@ class Controller:
             s = force-self.target
             self.nu += -self.k2*np.sign(s)*dt
             u = self.target - self.k1*np.sqrt(abs(s)+1e-9)*np.sign(s) + self.nu - .2*surface_velocity
+        elif self.name == "blsmc":
+            lower=self.target-self.barrier_margin
+            upper=self.target+self.barrier_margin
+            bounded_force=np.clip(force,lower+1e-6,upper-1e-6)
+            transformed=np.log((bounded_force-lower)/(upper-bounded_force))
+            switching=np.clip(transformed/self.boundary_layer,-1.,1.)
+            u=self.target-self.barrier_gain*np.tanh(transformed)-self.switch_gain*switching-.2*surface_velocity
         else: raise ValueError(self.name)
         if safe: u = np.clip(u, 3., 15.)
         return float(np.clip(u, 0., 25.))

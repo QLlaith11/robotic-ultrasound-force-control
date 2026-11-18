@@ -6,6 +6,7 @@ from rusim.simulation import run_episode, bringup, validate_motion, validate_bre
 from rusim.mujoco_backend import MODEL_PATH, make_model
 from rusim.tissue import TissueModel, validate_tissue_model
 from rusim.experiments import paired_statistics
+from rusim.controllers import Controller
 
 def test_fk_jacobian_finite_difference():
     q=np.linspace(-.2,.3,7); J=jacobian(q); h=1e-6
@@ -72,3 +73,17 @@ def test_controller_metrics_are_finite():
     r=run_episode(duration=.02, backend="mujoco", estimator="oracle")
     for key in ("mae","error_std","p95_abs_error","overshoot","undershoot","settling_time","retract_rate"):
         assert np.isfinite(r[key])
+
+def test_barrier_sliding_mode_controller_respects_force_window():
+    c=Controller("blsmc",gains={"barrier_margin":4.0,"barrier_gain":2.0,"switch_gain":1.5})
+    commands=[c.command(force,.002) for force in (0.,6.,9.,10.,14.,20.)]
+    assert all(0.0 <= value <= 25.0 for value in commands)
+    assert commands[0] > commands[-1]
+    assert c.command(14.0,.002) < 10.0
+
+def test_barrier_sliding_mode_episode():
+    result=run_episode(duration=.05,controller="blsmc",backend="mujoco",
+                       gains={"barrier_margin":4.0,"barrier_gain":2.0,"switch_gain":1.5},
+                       trajectory_difficulty=1.15)
+    assert result["controller"] == "blsmc"
+    assert np.isfinite(result["rmse"])
