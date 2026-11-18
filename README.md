@@ -48,6 +48,24 @@ amplitude, peak-to-peak displacement, peak velocity, and displacement RMS for
 80 deterministic organ/seed cases. The breathing component is a
 non-sinusoidal multi-harmonic surface motion with a randomized 3–5 s period.
 
+## Visual outputs
+
+The public results include a controller dashboard
+(`results/figures/controller_dashboard.svg`), respiratory-motion plot
+(`results/figures/respiratory_motion.svg`), and individual metric figures.
+The animation in `results/animation/robot_breathing_contact.mp4` and
+`robot_breathing_contact.gif` uses the imported iiwa MJCF and shows the robot
+tool moving relative to the breathing surface. It is an illustrative
+visualization of the validated model and respiratory input, not a recorded
+hardware experiment.
+
+Regenerate them with:
+
+```bash
+python3 scripts/make_public_plots.py
+python3 scripts/render_animation.py --output-dir results/animation
+```
+
 Limitations: this remains simulation, the imported arm model is not an
 official asset released by the paper authors or KUKA, force sensing is
 reconstructed from simulated joint torques, and event compression changes
