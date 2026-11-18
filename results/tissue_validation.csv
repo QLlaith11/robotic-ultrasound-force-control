@@ -1,0 +1,9 @@
+check,passed
+zero_penetration,True
+negative_penetration,True
+ten_mm_is_about_ten_newtons,True
+monotone_penetration,True
+damping_opposes_approach,True
+damping_increases_approach_force,True
+bounded_force,True
+plus_minus_forty_percent_stiffness,True

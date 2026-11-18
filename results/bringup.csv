@@ -1,0 +1,6 @@
+check,passed
+fk_site_finite,True
+jacobian_conditioned,True
+air_force_zero,True
+approach_contact_reached,True
+stable_contact_hold,True

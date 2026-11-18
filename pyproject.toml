@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robotic-ultrasound-force-control"
+version = "0.1.0"
+description = "Reproducible fast-mode force-control study for robotic ultrasound"
+requires-python = ">=3.8"
+dependencies = ["numpy>=1.22"]
+
+[project.optional-dependencies]
+research = ["scipy", "pandas", "matplotlib", "mujoco"]
+test = ["pytest"]
+
+[project.scripts]
+rusim = "rusim.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["rusim*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

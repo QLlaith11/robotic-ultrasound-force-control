@@ -1,0 +1,12 @@
+
+application/
+results_private/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+MUJOCO_LOG.TXT
+results_fast/
+results_small/
+results_rigorous_small/
+results/.checkpoint*/
