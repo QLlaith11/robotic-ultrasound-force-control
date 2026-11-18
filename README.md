@@ -55,10 +55,11 @@ The public results include a controller dashboard
 (`results/figures/respiratory_motion.svg`), and individual metric figures.
 The animation in `results/animation/robot_breathing_contact.mp4` and
 `robot_breathing_contact.gif` is rendered by MuJoCo's offscreen renderer from
-the imported iiwa MJCF. It advances the model's actuators toward a bounded
-multi-joint trajectory while the respiratory surface input is logged in
-`robot_breathing_contact_trace.npz`. It is a dynamic simulation visualization,
-not a recorded hardware experiment.
+the imported iiwa MJCF. It uses the same controller-to-force-to-joint-torque
+path as the benchmark, and the companion
+`robot_breathing_force_control.csv` records true force, estimated force, and
+commanded normal force. It is a dynamic simulation visualization, not a
+recorded hardware experiment.
 
 Regenerate them with:
 
