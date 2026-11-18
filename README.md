@@ -19,7 +19,7 @@ Commands:
   held-out tuning, motion validation, estimation/safety/robustness studies)
 * `python -m rusim.cli --rigorous --seeds 2 --duration 1 --output results_small`
   is a bounded end-to-end smoke suite.
-* `python -m rusim.cli --stress --output results_stress --seeds 3 --duration 8`
+* `python -m rusim.cli --stress --output results --seeds 3 --duration 8`
   runs adversarial breathing, tissue mismatch, mass mismatch, torque noise,
   sensor bias, and sensor dropout cases for all four controllers.
 
@@ -56,6 +56,8 @@ tail risk. `overshoot`, `undershoot`, and `settling_time` quantify transient
 behavior. `pct_above_11`, `pct_above_15`, and `time_above_15` quantify force
 exposure. `effort` measures mean squared applied torque norm, while
 `alarm_rate` and `retract_rate` quantify safety-monitor intervention.
+The stress output additionally reports delivered-force guarding, raw tissue
+demand, force-envelope violations, and maximum force excess.
 `paired_statistics.csv` compares PI, super-twisting, and BLSMC results by
 matched organ/seed with bootstrap intervals and a Wilcoxon test. The rigorous
 benchmark uses a 1.15 trajectory-difficulty factor: faster abrupt events and
@@ -82,7 +84,20 @@ These are simulation-only results; the condition-dependent ranking is why
 phantom calibration and staged hardware validation are part of the proposed
 next phase.
 
-The hard stress matrix writes `results_stress/stress_test.csv` and reports
+Selected mean metrics from the same held-out runs:
+
+| Organ | Controller | MAE (N) | P95 error (N) | Settling (s) | Time >15 N |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Liver | Impedance | 0.125 | 0.276 | 20.438 | 0.0% |
+| Liver | PI | 0.199 | 0.461 | 37.982 | 0.0% |
+| Liver | STA | 0.153 | 0.266 | 20.524 | 0.0% |
+| Liver | BLSMC | **0.053** | **0.097** | **20.042** | 0.0% |
+| Prostate | Impedance | 0.190 | 0.334 | 22.603 | 25.2% |
+| Prostate | PI | 0.223 | 0.455 | 34.307 | **10.9%** |
+| Prostate | STA | 0.210 | 0.409 | 22.619 | 21.2% |
+| Prostate | BLSMC | **0.117** | **0.182** | **22.320** | 24.9% |
+
+The hard stress matrix writes `results/stress_test.csv` and reports
 `force_guard_rate`, `hard_limit_violation_rate`, `max_force_excess`,
 `raw_force_demand_rate`, and `raw_max_force_excess`, as well as alarms and
 retractions. A zero delivered-force violation rate means the force-envelope
@@ -95,16 +110,40 @@ cases.
 
 ## Visual outputs
 
-The public results include a controller dashboard
-(`results/figures/controller_dashboard.svg`), respiratory-motion plot
-(`results/figures/respiratory_motion.svg`), and individual metric figures.
-The animation in `results/animation/robot_breathing_contact.mp4` and
-`robot_breathing_contact.gif` is rendered by MuJoCo's offscreen renderer from
+The controller dashboard summarizes all four controllers across both organs:
+
+![Controller dashboard](results/figures/controller_dashboard.svg)
+
+The respiratory surface motion used in the experiments is:
+
+![Respiratory tissue motion](results/figures/respiratory_motion.svg)
+
+The animation below is a playable GIF rendered by MuJoCo's offscreen renderer
+from
 the imported iiwa MJCF. It uses the same controller-to-force-to-joint-torque
 path as the benchmark, and the companion
 `robot_breathing_force_control.csv` records true force, estimated force, and
 commanded normal force. It is a dynamic simulation visualization, not a
 recorded hardware experiment.
+
+![MuJoCo force-control animation](results/animation/robot_breathing_contact.gif)
+
+[Download the MP4 version](results/animation/robot_breathing_contact.mp4).
+
+<details>
+<summary>Individual metric visualizations</summary>
+
+| Metric | Visualization |
+| --- | --- |
+| RMSE | ![RMSE](results/figures/rmse.svg) |
+| MAE | ![MAE](results/figures/mae.svg) |
+| 95th-percentile error | ![P95 error](results/figures/p95_abs_error.svg) |
+| Overshoot | ![Overshoot](results/figures/overshoot.svg) |
+| Settling time | ![Settling time](results/figures/settling_time.svg) |
+| Control effort | ![Effort](results/figures/effort.svg) |
+| Time above 15 N | ![Threshold exposure](results/figures/pct_above_15.svg) |
+
+</details>
 
 Regenerate them with:
 
