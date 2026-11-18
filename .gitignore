@@ -10,3 +10,6 @@ results_fast/
 results_small/
 results_rigorous_small/
 results/.checkpoint*/
+results/test_*.csv
+results/bringup_*csv
+results/.gitkeep
