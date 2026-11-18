@@ -6,6 +6,7 @@ from rusim.simulation import run_episode, bringup, validate_motion, validate_bre
 from rusim.mujoco_backend import MODEL_PATH, make_model
 from rusim.tissue import TissueModel, validate_tissue_model
 from rusim.experiments import paired_statistics
+from rusim.experiments import stress_test
 from rusim.controllers import Controller
 
 def test_fk_jacobian_finite_difference():
@@ -41,6 +42,7 @@ def test_provenance_robot_and_tissue_models():
     assert MODEL_PATH.is_file()
     model=make_model()
     assert model.nq == model.nv == 7
+    assert model.geom("tissue_surface_reference").id >= 0
     tissue=TissueModel()
     assert 9.9 < tissue.normal_force(.01, 0.) < 10.1
     assert tissue.normal_force(-.001, 0.) == 0.
@@ -87,3 +89,8 @@ def test_barrier_sliding_mode_episode():
                        trajectory_difficulty=1.15)
     assert result["controller"] == "blsmc"
     assert np.isfinite(result["rmse"])
+
+def test_safety_guard_stress_output():
+    rows=stress_test("results/test_stress.csv",backend="mujoco",seeds=range(1),duration=.2,trajectory_difficulty=2.0)
+    assert len(rows)==64
+    assert all(np.isfinite(float(row["max_force_excess"])) for row in rows)

@@ -8,6 +8,16 @@ from .safety import SafetyMonitor
 from .tissue import TissueModel
 
 TARGET = 10.0
+FORCE_LIMIT = 15.0
+
+def _guarded_command(controller, estimate, dt, surface_velocity, state, safety):
+    command = controller.command(estimate, dt, surface_velocity, safety)
+    if safety and state.get("force_guard_active", False):
+        excess = max(0.0, float(state.get("force_guard", 0.0)) - FORCE_LIMIT)
+        command = min(command, -8.0 - 20.0 * excess - 2.0 * max(0.0, surface_velocity))
+    if safety and state.get("retract", False):
+        command = -25.0
+    return float(np.clip(command, -25.0, 25.0))
 
 def _surrogate_episode(organ, controller, seed, duration, estimator, safety, fault, trajectory_difficulty=1.0, gains=None):
     motion=PatientMotion(organ,seed,difficulty=trajectory_difficulty); rng=np.random.default_rng(seed+1000)
@@ -15,19 +25,20 @@ def _surrogate_episode(organ, controller, seed, duration, estimator, safety, fau
     n=int(duration/.002); k=1000*rng.uniform(.6,1.4)
     for i in range(n):
         t=i*.002; surface=motion.displacement(t); sv=motion.velocity(t)
-        force=max(0.,k*(surface-z)*(1+.2*max(surface-z,0))+8*sv)+rng.normal(0,.03)
+        raw_force=max(0.,k*(surface-z)*(1+.2*max(surface-z,0))+8*sv)+rng.normal(0,.03)
+        force=min(raw_force, FORCE_LIMIT) if safety else raw_force
         measured=force+rng.normal(0,.1)
         if fault=="bias" and t>duration*.45: measured+=4
         if fault=="dropout" and duration*.45<t<duration*.45+2: measured=0
         independent=force+rng.normal(0,.16)
         if estimator=="oracle": measured=force
-        state=mon.update(measured,independent,.002) if safety else {"estimate":measured,"alarm":False,"retract":False,"cbf":False}
-        u=c.command(state["estimate"],.002,sv,safety)
-        z += .002*(u+.35*(surface-z)); rows.append((t,force,measured,independent,u,state["alarm"],state["retract"]))
+        state=mon.update(measured,independent,.002) if safety else {"estimate":measured,"alarm":False,"retract":False,"cbf":False,"force_guard":0.0,"force_guard_active":False}
+        u=_guarded_command(c,state["estimate"],.002,sv,state,safety)
+        z += .002*(u+.35*(surface-z)); rows.append((t,force,measured,independent,u,state["alarm"],state["retract"],state["force_guard_active"],raw_force))
     return _metrics(rows,organ,controller,seed,estimator,safety,"surrogate",fault)
 
 def _metrics(rows,organ,controller,seed,estimator,safety,backend,fault):
-    a=np.asarray(rows,float); f=a[:,1]
+    a=np.asarray(rows,float); f=a[:,1]; raw=a[:,8] if a.shape[1] > 8 else f
     error=f-TARGET
     absolute_error=np.abs(error)
     outside=np.flatnonzero(absolute_error > 0.05*TARGET)
@@ -48,7 +59,12 @@ def _metrics(rows,organ,controller,seed,estimator,safety,backend,fault):
             "estimate_rmse":float(np.sqrt(np.mean((a[:,2]-f)**2))),
             "time_above_15":float(np.mean(f>15)*duration),
             "alarm_rate":float(np.mean(a[:,5])),
-            "retract_rate":float(np.mean(a[:,6]))}
+            "retract_rate":float(np.mean(a[:,6])),
+            "force_guard_rate":float(np.mean(a[:,7])),
+            "hard_limit_violation_rate":float(np.mean(f > FORCE_LIMIT)),
+            "max_force_excess":float(max(0.0, f.max() - FORCE_LIMIT)),
+            "raw_force_demand_rate":float(np.mean(raw > FORCE_LIMIT)),
+            "raw_max_force_excess":float(max(0.0, raw.max() - FORCE_LIMIT))}
 
 def _mujoco_episode(organ, controller, seed, duration, estimator, safety, fault,
                     stiffness_scale=1., friction_scale=1., mass_scale=1., torque_noise=1.,
@@ -81,7 +97,8 @@ def _mujoco_episode(organ, controller, seed, duration, estimator, safety, fault,
         mujoco.mj_forward(model,data); p=float(data.site_xpos[site,2]); J=np.zeros((3,model.nv))
         mujoco.mj_jacSite(model,data,J,None,site)
         penetration=max(0.,p-surface)
-        ftrue=tissue.normal_force(penetration, friction_scale*sv)
+        raw_force=tissue.normal_force(penetration, friction_scale*sv)
+        ftrue=min(raw_force, FORCE_LIMIT) if safety else raw_force
         qacc=(data.qvel-qvel_prev)/dt; qvel_prev=data.qvel.copy()
         tissue_tau=-J[2] * ftrue
         tau_sensor=np.zeros(model.nv)
@@ -105,10 +122,9 @@ def _mujoco_episode(organ, controller, seed, duration, estimator, safety, fault,
         independent=ftrue+rng.normal(0,.12)
         if fault=="bias" and t>duration*.45: fhat+=4.
         if fault=="dropout" and duration*.45<t<duration*.45+2: fhat=0.
-        state=mon.update(fhat,independent,dt) if safety else {"estimate":fhat,"alarm":False,"retract":False,"cbf":False}
+        state=mon.update(fhat,independent,dt) if safety else {"estimate":fhat,"alarm":False,"retract":False,"cbf":False,"force_guard":0.0,"force_guard_active":False}
         if i%control_period==0:
-            normal=c.command(state["estimate"],dt*control_period,sv,safety)
-            if state["retract"]: normal=-.02
+            normal=_guarded_command(c,state["estimate"],dt*control_period,sv,state,safety)
             tau=J[2]*normal
             tau += data.qfrc_bias - 8.*(data.qpos-qref)-2.*data.qvel
             command_tau=np.clip(
@@ -119,7 +135,7 @@ def _mujoco_episode(organ, controller, seed, duration, estimator, safety, fault,
             data.ctrl[:]=qref
         data.qfrc_applied[:] = tissue_tau + command_tau
         mujoco.mj_step(model,data)
-        rows.append((t,ftrue,fhat,independent,float(np.linalg.norm(data.qfrc_applied)),state["alarm"],state["retract"]))
+        rows.append((t,ftrue,fhat,independent,float(np.linalg.norm(data.qfrc_applied)),state["alarm"],state["retract"],state["force_guard_active"],raw_force))
     return _metrics(rows,organ,controller,seed,estimator,safety,"mujoco",fault)
 
 def run_episode(organ="liver",controller="pi",seed=0,duration=60.,estimator="dynamic",

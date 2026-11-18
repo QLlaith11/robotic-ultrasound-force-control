@@ -69,7 +69,9 @@ def rigorous(output_dir="results", backend="mujoco", evaluation_seeds=range(10),
            (("pi","sta"),("pi","blsmc"),("sta","blsmc")) for m in
            ("rmse","mae","error_std","p95_abs_error","overshoot","undershoot",
             "settling_time","median","iqr","pct_above_11","pct_above_15",
-            "max_force","effort","time_above_15","alarm_rate","retract_rate")]
+            "max_force","effort","time_above_15","alarm_rate","retract_rate",
+            "force_guard_rate","hard_limit_violation_rate","max_force_excess",
+            "raw_force_demand_rate","raw_max_force_excess")]
     _write(out/"paired_statistics.csv",stats)
     est=[]
     for organ in ("liver","prostate"):
@@ -141,7 +143,9 @@ def rigorous_checkpointed(output_dir="results", backend="mujoco",
         ("rmse","mae","error_std","p95_abs_error","overshoot",
          "undershoot","settling_time","median","iqr","pct_above_11",
          "pct_above_15","max_force","effort","time_above_15",
-         "alarm_rate","retract_rate")
+         "alarm_rate","retract_rate","force_guard_rate",
+         "hard_limit_violation_rate","max_force_excess",
+         "raw_force_demand_rate","raw_max_force_excess")
     ]
     _write(out / "paired_statistics.csv", stats)
     est = []
@@ -186,4 +190,33 @@ def rigorous_checkpointed(output_dir="results", backend="mujoco",
             result["perturbation"] = label
             robust.append(result)
     _write(out / "robustness.csv", robust)
+    return rows
+
+def stress_test(output="results/stress_test.csv", backend="mujoco",
+                seeds=range(3), duration=8., trajectory_difficulty=2.5):
+    rows = []
+    cases = {
+        "rapid_breathing": {"trajectory_difficulty": trajectory_difficulty},
+        "soft_tissue": {"trajectory_difficulty": trajectory_difficulty, "stiffness_scale": .5},
+        "stiff_tissue": {"trajectory_difficulty": trajectory_difficulty, "stiffness_scale": 2.5},
+        "mass_mismatch": {"trajectory_difficulty": trajectory_difficulty, "mass_scale": 2.0},
+        "torque_noise": {"trajectory_difficulty": trajectory_difficulty, "torque_noise": 3.},
+        "combined_adversary": {"trajectory_difficulty": trajectory_difficulty * 1.2,
+                               "stiffness_scale": 2.5, "mass_scale": 2.0,
+                               "torque_noise": 3.},
+        "sensor_bias": {"trajectory_difficulty": trajectory_difficulty, "fault": "bias"},
+        "sensor_dropout": {"trajectory_difficulty": trajectory_difficulty, "fault": "dropout"},
+    }
+    for case, perturbations in cases.items():
+        fault = perturbations.pop("fault", None)
+        for organ in ("liver", "prostate"):
+            for controller in ("impedance", "pi", "sta", "blsmc"):
+                for seed in seeds:
+                    result = run_episode(
+                        organ, controller, seed, duration, safety=True,
+                        fault=fault, backend=backend, **perturbations,
+                    )
+                    result["stress_case"] = case
+                    rows.append(result)
+    _write(output, rows)
     return rows

@@ -18,6 +18,10 @@ organ-specific breathing amplitude, velocity, drift, cardiac ripple, and
 abrupt events. The paper does not release a tissue FEM or constitutive model,
 law is explicitly labeled as a simulation assumption rather than an existing
 paper asset.
+The MuJoCo scene now includes a reference tissue plane for visualization while
+the moving contact surface remains an explicit displacement/velocity field at
+the probe site. A force governor performs active retraction at the configured 15 N study limit and logs both delivered-force violations and
+uncapped tissue-demand excursions.
 
 Validated here: 14 regression tests, the imported model, and tissue law
 validation pass; and the

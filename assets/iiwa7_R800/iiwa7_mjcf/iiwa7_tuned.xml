@@ -69,6 +69,7 @@
     <!-- Materials (iiwa_stack URDF original color values) -->
     <material name="iiwa_grey"   rgba="0.4 0.4 0.4 1" specular="0.5" shininess="0.25"/>
     <material name="iiwa_orange" rgba="1.0 0.423529 0.0392157 1" specular="0.5" shininess="0.25"/>
+    <material name="tissue_surface" rgba="0.75 0.25 0.30 0.35" specular="0.1" shininess="0.1"/>
 
     <!-- Visual meshes: iiwa7 STL split by mesh-surface classification -->
     <mesh name="link_0_vis"        file="visual/link_0.obj"/>
@@ -95,6 +96,8 @@
   </asset>
 
   <worldbody>
+    <geom name="tissue_surface_reference" type="plane" pos="0 0 0.864" size="0.30 0.30 0.01"
+          material="tissue_surface" contype="0" conaffinity="0" group="1"/>
     <body name="iiwa_link_0" childclass="iiwa">
       <geom class="visual" mesh="link_0_vis"/>
       <geom class="collision" mesh="link_0_col"/>
