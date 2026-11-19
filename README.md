@@ -140,6 +140,14 @@ recorded hardware experiment.
 
 [Download the MP4 version](results/animation/robot_breathing_contact.mp4).
 
+The red semi-transparent object is a **visual tissue-surface proxy**. It follows
+the explicit moving surface in the animation and is disabled for MuJoCo contact
+(`contype="0"` and `conaffinity="0"`). The red marker at the end of the arm is
+the `attachment_site`; the actual normal force is computed by the explicit
+Kelvin--Voigt-like penalty law from penetration at this site and is then
+converted to joint torque through its Jacobian. These are not a measured
+tissue volume or a rigid colliding red block.
+
 <details>
 <summary>Individual metric visualizations</summary>
 
@@ -221,45 +229,45 @@ emergency stop, and torque commands.
 
 ### Moving tissue surface
 
-The probe attachment site has vertical position \(z_p(t)\). The moving tissue
+The probe attachment site has vertical position $z_p(t)$. The moving tissue
 surface is represented by an explicit signed normal displacement:
 
-\[
+$$
 z_s(t)=z_0+z_{\mathrm{resp}}(t)+z_{\mathrm{drift}}(t)
        +z_{\mathrm{event}}(t)+z_{\mathrm{cardiac}}(t).
-\]
+$$
 
 Penetration and surface velocity are
 
-\[
+$$
 p(t)=\max(0,z_p(t)-z_s(t)), \qquad v_s(t)=\dot z_s(t).
-\]
+$$
 
 The contact law is a bounded nonlinear Kelvin--Voigt-like penalty model:
 
-\[
+$$
 F_{\mathrm{raw}} =
 k\,p(1+0.2p)+c\,v_s,\qquad
 F_{\mathrm{tissue}}=\min(40,\max(0,F_{\mathrm{raw}})).
-\]
+$$
 
-The nominal parameters are \(k=1000\ \mathrm{N/m}\) and
-\(c=8\ \mathrm{N\,s/m}\). Ten millimetres of static penetration therefore
+The nominal parameters are $k=1000\ \mathrm{N/m}$ and
+$c=8\ \mathrm{N\,s/m}$. Ten millimetres of static penetration therefore
 produces approximately 10 N. The 40 N limit is a numerical model envelope,
 not a clinical tissue limit. In safety-mode stress tests, a separate delivered
 force envelope uses 15 N and records uncapped tissue demand separately.
 
 ### Barrier coordinate
 
-The target force is \(F_d=10\) N and the barrier interval is
-\([F_{\min},F_{\max}]=[6,14]\) N. The logarithmic barrier coordinate is
+The target force is $F_d=10$ N and the barrier interval is
+$[F_{\min},F_{\max}]=[6,14]$ N. The logarithmic barrier coordinate is
 
-\[
+$$
 \xi(F)=\log\left(\frac{F-F_{\min}}{F_{\max}-F}\right).
-\]
+$$
 
 The measured force is clipped only inside the open interval for numerical
-stability. As \(F\) approaches either boundary, \(|\xi|\) grows, so the
+stability. As $F$ approaches either boundary, $|\xi|$ grows, so the
 controller produces a corrective command before the force reaches the
 barrier.
 
@@ -267,21 +275,21 @@ barrier.
 
 The BLSMC command is
 
-\[
+$$
 u_{\mathrm{BL}}=F_d-k_b\tanh(\xi)
 -k_s\operatorname{sat}(\xi/\phi)-0.2v_s.
-\]
+$$
 
 The BLF-STSMC command uses the same barrier coordinate as its sliding variable:
 
-\[
+$$
 s=\xi,\qquad
 u_{\mathrm{BLF-ST}}=F_d-k_1\sqrt{|s|}\operatorname{sat}(s/\phi)
-\nu-0.2v_s,
-\]
-\[
++\nu_k-0.2v_s,
+$$
+$$
 \nu_{k+1}=\nu_k-k_2\operatorname{sat}(s/\phi)\Delta t.
-\]
+$$
 
 This is a sampled-data implementation. It is not a formal continuous-time
 invariance proof for the complete robot, actuator, estimator, and tissue
@@ -291,9 +299,9 @@ dynamics.
 
 The desired normal force is mapped through the attachment-site Jacobian:
 
-\[
+$$
 \tau_{\mathrm{normal}}=J_z(q)^\mathsf{T}u.
-\]
+$$
 
 Posture stabilization and the imported iiwa actuator limits are applied before
 the torque is submitted to MuJoCo through `qfrc_applied`.
