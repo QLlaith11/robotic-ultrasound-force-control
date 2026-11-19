@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter, PillowWriter, FuncAnimation
 import mujoco
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from rusim.controllers import Controller
 from rusim.mujoco_backend import make_model
@@ -97,12 +97,7 @@ def main():
         renderer.update_scene(data,camera=camera)
         frame=np.asarray(renderer.render())
         image=Image.fromarray(frame)
-        draw=ImageDraw.Draw(image)
         latest=force_rows[-1] if force_rows else (0.0,0.0,0.0,0.0)
-        draw.rectangle((12,12,470,94),fill=(255,255,255,215))
-        draw.text((24,22),f"MuJoCo force-control rendering: {args.controller.upper()}",fill=(20,45,65))
-        draw.text((24,48),f"t={frame_time:.2f} s  true={latest[1]:.2f} N  estimate={latest[2]:.2f} N",fill=(20,45,65))
-        draw.text((24,70),f"commanded normal force={latest[3]:.2f} N",fill=(20,45,65))
         frames.append(np.asarray(image))
         force_rows.append((frame_time,true_force,estimate,normal))
     frames=np.asarray(frames)
