@@ -13,6 +13,9 @@ results/.checkpoint*/
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
+build/
+install/
+log/
 results/test_*.csv
 results/bringup_*csv
 results/.gitkeep
