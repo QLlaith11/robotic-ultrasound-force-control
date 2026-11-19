@@ -43,6 +43,10 @@ def test_provenance_robot_and_tissue_models():
     model=make_model()
     assert model.nq == model.nv == 7
     assert model.geom("tissue_surface_reference").id >= 0
+    geom=model.geom("tissue_surface_reference")
+    assert geom.contype == 0 and geom.conaffinity == 0
+    assert geom.size[0] <= 0.12 and geom.size[1] <= 0.12
+    assert geom.size[2] <= 0.003
     tissue=TissueModel()
     assert 9.9 < tissue.normal_force(.01, 0.) < 10.1
     assert tissue.normal_force(-.001, 0.) == 0.

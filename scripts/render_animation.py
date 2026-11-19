@@ -27,7 +27,8 @@ def main():
     output_dir.mkdir(parents=True,exist_ok=True)
     model=make_model()
     data=mujoco.MjData(model)
-    qref=np.array([0.0,0.5,0.0,1.0,0.0,-1.0,0.0])
+    qref=np.array([0.09803821,0.53355174,-0.39410614,1.2465079,
+                   0.26504926,0.72949134,-0.08275502])
     data.qpos[:]=qref
     data.ctrl[:]=qref
     mujoco.mj_forward(model,data)
@@ -43,6 +44,12 @@ def main():
     monitor=SafetyMonitor()
     tissue=TissueModel()
     renderer=mujoco.Renderer(model,height=450,width=600)
+    camera=mujoco.MjvCamera()
+    camera.type=mujoco.mjtCamera.mjCAMERA_FREE
+    camera.lookat[:]=np.array([0.35,0.0,0.55])
+    camera.distance=1.25
+    camera.azimuth=135.0
+    camera.elevation=-12.0
     duration=12.0
     dt=float(model.opt.timestep)
     frame_times=np.linspace(0.0,duration,args.frames)
@@ -62,7 +69,7 @@ def main():
             model.geom_pos[tissue_geom_id,:]=np.array([
                 data.site_xpos[site_id,0],
                 data.site_xpos[site_id,1],
-                surface-0.0125,
+                surface-0.0021,
             ])
             jacobian=np.zeros((3,model.nv))
             mujoco.mj_jacSite(model,data,jacobian,None,site_id)
@@ -87,7 +94,7 @@ def main():
                 data.ctrl[:]=qref
             data.qfrc_applied[:]=tissue_tau+command_tau
             mujoco.mj_step(model,data)
-        renderer.update_scene(data)
+        renderer.update_scene(data,camera=camera)
         frame=np.asarray(renderer.render())
         image=Image.fromarray(frame)
         draw=ImageDraw.Draw(image)

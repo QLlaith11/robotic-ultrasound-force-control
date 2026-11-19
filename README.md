@@ -140,7 +140,9 @@ recorded hardware experiment.
 
 [Download the MP4 version](results/animation/robot_breathing_contact.mp4).
 
-The red semi-transparent object is a **visual tissue-surface proxy**. It follows
+The red semi-transparent object is a **visual tissue-surface proxy**. The
+12-second animation uses a normal-aligned pose with the attachment site above
+the block and the local Z axis directed downward. It follows
 the explicit moving surface in the animation and is disabled for MuJoCo contact
 (`contype="0"` and `conaffinity="0"`). The red marker at the end of the arm is
 the `attachment_site`; the actual normal force is computed by the explicit
