@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robotic_ultrasound_force_control</name>
+  <version>0.1.0</version>
+  <description>MuJoCo digital-twin and force-controller interfaces for robotic ultrasound.</description>
+  <maintainer email="alshiekhlaith@gmail.com">QLlaith11</maintainer>
+  <license>BSD-3-Clause</license>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

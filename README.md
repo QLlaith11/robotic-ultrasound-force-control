@@ -179,3 +179,40 @@ The barrier coordinate follows the constrained-output Lyapunov construction
 of Tee, Ge, and Tay, “Barrier Lyapunov Functions for the control of
 output-constrained nonlinear systems,” *Automatica* 45 (2009), 918–927,
 DOI: [10.1016/j.automatica.2008.11.017](https://doi.org/10.1016/j.automatica.2008.11.017).
+
+## ROS 2 digital-twin package
+
+The `ros2_ws/src/robotic_ultrasound_force_control` package adds a Foxy
+interface around the same controller and MuJoCo model:
+
+- `mujoco_node`: breathes the tissue surface, computes explicit contact force,
+  publishes true/estimated force, surface velocity, and joint positions.
+- `controller_node`: consumes estimated force and surface velocity, runs the
+  selected controller, and publishes the desired normal force.
+- `safety_node`: monitors estimated and independent force channels and publishes
+  a guarded desired force plus guard status.
+
+Build and run:
+
+```bash
+source_ros2
+cd /home/laith/Downloads/robotic_ultrasound_force_control/ros2_ws
+colcon build --symlink-install --packages-select robotic_ultrasound_force_control
+source install/setup.bash
+export RUSIM_PROJECT_ROOT=/home/laith/Downloads/robotic_ultrasound_force_control
+ros2 launch robotic_ultrasound_force_control digital_twin.launch.py
+```
+
+Useful live checks:
+
+```bash
+ros2 topic list
+ros2 topic echo /tissue/true_force std_msgs/msg/Float64
+ros2 topic echo /ultrasound/safe_desired_normal_force std_msgs/msg/Float64
+ros2 topic echo /ultrasound/safety_guard_active std_msgs/msg/Bool
+```
+
+This is a simulation ROS 2 interface, not a robot-driver integration. Hardware
+requires replacing `mujoco_node` with a real force-sensor and joint-state
+interface and independently validating signal timestamps, calibration, limits,
+emergency stop, and torque commands.

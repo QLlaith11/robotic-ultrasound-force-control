@@ -1,0 +1,23 @@
+robotic_ultrasound_controller:
+  ros__parameters:
+    target_force: 10.0
+    controller: blf_stsmc
+    control_hz: 500.0
+    barrier_margin: 4.0
+    blf_st_k1: 2.0
+    blf_st_k2: 3.5
+
+robotic_ultrasound_mujoco:
+  ros__parameters:
+    organ: liver
+    seed: 7
+    stiffness_scale: 1.0
+    friction_scale: 1.0
+    trajectory_difficulty: 1.15
+    duration: 60.0
+
+robotic_ultrasound_safety:
+  ros__parameters:
+    lower_force: 3.0
+    upper_force: 15.0
+    hard_force: 15.0
