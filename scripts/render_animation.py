@@ -34,7 +34,6 @@ def main():
     site_id=model.site("attachment_site").id
     tissue_geom_id=model.geom("tissue_surface_reference").id
     z0=float(data.site_xpos[site_id,2])
-    tissue_xy=data.site_xpos[site_id,:2].copy()
     motion=PatientMotion("liver",0)
     rng=np.random.default_rng(7)
     controller=Controller(args.controller,gains={"kp":.009,"ki":.25,"k1":1.2,"k2":3.0,
@@ -58,9 +57,13 @@ def main():
             base=z0-.010+.008*min(t/1.0,1.0)
             surface=base+motion.displacement(t)
             surface_velocity=motion.velocity(t)
-            model.geom_pos[tissue_geom_id,:]=np.array([tissue_xy[0],tissue_xy[1],surface-0.0125])
             mujoco.mj_forward(model,data)
             position=float(data.site_xpos[site_id,2])
+            model.geom_pos[tissue_geom_id,:]=np.array([
+                data.site_xpos[site_id,0],
+                data.site_xpos[site_id,1],
+                surface-0.0125,
+            ])
             jacobian=np.zeros((3,model.nv))
             mujoco.mj_jacSite(model,data,jacobian,None,site_id)
             penetration=max(0.0,position-surface)
