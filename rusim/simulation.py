@@ -211,7 +211,7 @@ def benchmark(output_dir="results",seeds=range(10),duration=60.,backend="mujoco"
     out=Path(output_dir); out.mkdir(parents=True,exist_ok=True); validate_motion(out/"motion_validation.csv",range(40)); validate_breathing(out/"breathing_validation.csv",range(40)); bringup(out/"bringup.csv")
     metrics=[]
     for organ in ("liver","prostate"):
-        for ctl in ("impedance","pi","sta"):
+        for ctl in ("impedance","pi","sta","blsmc","blf_stsmc"):
             for seed in seeds: metrics.append(run_episode(organ,ctl,seed,duration,backend=backend))
     with (out/"metrics.csv").open("w",newline="") as f:
         w=csv.DictWriter(f,fieldnames=metrics[0]); w.writeheader(); w.writerows(metrics)

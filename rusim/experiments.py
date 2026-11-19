@@ -29,14 +29,16 @@ def tune(output="results/gains.json", backend="mujoco", tuning_seeds=range(100,1
     # Equal-budget held-out tuning; evaluation seeds never appear here.
     candidates={"pi":[(.004,.08),(.006,.15),(.009,.25)],
                 "sta":[(.5,1.0),(.8,2.0),(1.2,3.0)],
-                "blsmc":[(3.0,1.5,1.0),(4.0,2.0,1.5),(4.5,2.5,2.0)]}
+                "blsmc":[(3.0,1.5,1.0),(4.0,2.0,1.5),(4.5,2.5,2.0)],
+                "blf_stsmc":[(1.0,2.0),(1.5,2.5),(2.0,3.5)]}
     scores={}
     for name, vals in candidates.items():
         scores[name]=[]
         for val in vals:
             if name=="pi": gains={"kp":val[0],"ki":val[1]}
             elif name=="sta": gains={"k1":val[0],"k2":val[1]}
-            else: gains={"barrier_margin":val[0],"barrier_gain":val[1],"switch_gain":val[2]}
+            elif name=="blsmc": gains={"barrier_margin":val[0],"barrier_gain":val[1],"switch_gain":val[2]}
+            else: gains={"barrier_margin":4.0,"blf_st_k1":val[0],"blf_st_k2":val[1]}
             rs=[run_episode("liver",name,s,duration,backend=backend,gains=gains,
                             trajectory_difficulty=trajectory_difficulty)["rmse"] for s in tuning_seeds]
             scores[name].append((float(np.mean(rs)),val))
@@ -45,7 +47,10 @@ def tune(output="results/gains.json", backend="mujoco", tuning_seeds=range(100,1
               "sta":{"k1":best["sta"][0],"k2":best["sta"][1]},
               "blsmc":{"barrier_margin":best["blsmc"][0],
                        "barrier_gain":best["blsmc"][1],
-                       "switch_gain":best["blsmc"][2]}}
+                       "switch_gain":best["blsmc"][2]},
+              "blf_stsmc":{"barrier_margin":4.0,
+                           "blf_st_k1":best["blf_stsmc"][0],
+                           "blf_st_k2":best["blf_stsmc"][1]}}
     data={"tuning_seeds":list(tuning_seeds),"evaluation_seeds":list(range(10)),
           "selected":selected,"candidate_scores":scores}
     Path(output).write_text(json.dumps(data,indent=2)); return data
@@ -58,7 +63,7 @@ def rigorous(output_dir="results", backend="mujoco", evaluation_seeds=range(10),
     rows=[]
     evaluation_seeds=list(evaluation_seeds)
     for organ in ("liver","prostate"):
-        for ctl in ("impedance","pi","sta","blsmc"):
+        for ctl in ("impedance","pi","sta","blsmc","blf_stsmc"):
             for seed in evaluation_seeds:
                 rows.append(run_episode(organ,ctl,seed,main_duration,backend=backend,
                                         gains=gain_data["selected"].get(ctl),
@@ -66,7 +71,8 @@ def rigorous(output_dir="results", backend="mujoco", evaluation_seeds=range(10),
     _write(out/"metrics.csv",rows)
     stats=[paired_statistics([r for r in rows if r["organ"]==organ],m,a,b)
            for organ in ("liver","prostate") for a,b in
-           (("pi","sta"),("pi","blsmc"),("sta","blsmc")) for m in
+           (("pi","sta"),("pi","blsmc"),("pi","blf_stsmc"),
+            ("sta","blsmc"),("sta","blf_stsmc"),("blsmc","blf_stsmc")) for m in
            ("rmse","mae","error_std","p95_abs_error","overshoot","undershoot",
             "settling_time","median","iqr","pct_above_11","pct_above_15",
             "max_force","effort","time_above_15","alarm_rate","retract_rate",
@@ -110,7 +116,7 @@ def rigorous_checkpointed(output_dir="results", backend="mujoco",
     without discarding completed 60-second episodes.
     """
     out = Path(output_dir)
-    checkpoint = out / ".checkpoint_blsmc_v3"
+    checkpoint = out / ".checkpoint_blf_stsmc_v5"
     checkpoint.mkdir(parents=True, exist_ok=True)
     validate_motion(out / "motion_validation.csv", range(40))
     validate_breathing(out / "breathing_validation.csv", range(40))
@@ -120,7 +126,7 @@ def rigorous_checkpointed(output_dir="results", backend="mujoco",
                      min(5., main_duration), trajectory_difficulty)
     evaluation_seeds = list(evaluation_seeds)
     for organ in ("liver", "prostate"):
-        for ctl in ("impedance", "pi", "sta","blsmc"):
+        for ctl in ("impedance", "pi", "sta","blsmc","blf_stsmc"):
             for seed in evaluation_seeds:
                 path = checkpoint / f"{organ}_{ctl}_{seed}.json"
                 if not path.exists():
@@ -138,7 +144,8 @@ def rigorous_checkpointed(output_dir="results", backend="mujoco",
     stats = [
         paired_statistics([r for r in rows if r["organ"] == organ], metric, a, b)
         for organ in ("liver", "prostate")
-        for a, b in (("pi", "sta"), ("pi", "blsmc"), ("sta", "blsmc"))
+        for a, b in (("pi", "sta"), ("pi", "blsmc"), ("pi", "blf_stsmc"),
+                     ("sta", "blsmc"), ("sta", "blf_stsmc"), ("blsmc", "blf_stsmc"))
         for metric in
         ("rmse","mae","error_std","p95_abs_error","overshoot",
          "undershoot","settling_time","median","iqr","pct_above_11",
@@ -210,7 +217,7 @@ def stress_test(output="results/stress_test.csv", backend="mujoco",
     for case, perturbations in cases.items():
         fault = perturbations.pop("fault", None)
         for organ in ("liver", "prostate"):
-            for controller in ("impedance", "pi", "sta", "blsmc"):
+            for controller in ("impedance", "pi", "sta", "blsmc", "blf_stsmc"):
                 for seed in seeds:
                     result = run_episode(
                         organ, controller, seed, duration, safety=True,

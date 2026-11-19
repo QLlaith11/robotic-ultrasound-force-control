@@ -12,7 +12,9 @@ class Controller:
         self.barrier_gain = float(gains.get("barrier_gain", 2.0))
         self.switch_gain = float(gains.get("switch_gain", 1.5))
         self.boundary_layer = float(gains.get("boundary_layer", .08))
-        self.integral, self.nu = 0., 0.
+        self.blf_st_k1 = float(gains.get("blf_st_k1", 1.5))
+        self.blf_st_k2 = float(gains.get("blf_st_k2", 2.5))
+        self.integral, self.nu, self.blf_st_nu = 0., 0., 0.
     def command(self, force, dt, surface_velocity=0., safe=False):
         e = self.target - force
         if self.name == "impedance": u = self.target + self.kp*e - 0.2*surface_velocity
@@ -30,6 +32,16 @@ class Controller:
             transformed=np.log((bounded_force-lower)/(upper-bounded_force))
             switching=np.clip(transformed/self.boundary_layer,-1.,1.)
             u=self.target-self.barrier_gain*np.tanh(transformed)-self.switch_gain*switching-.2*surface_velocity
+        elif self.name == "blf_stsmc":
+            lower=self.target-self.barrier_margin
+            upper=self.target+self.barrier_margin
+            bounded_force=np.clip(force,lower+1e-6,upper-1e-6)
+            barrier_error=np.log((bounded_force-lower)/(upper-bounded_force))
+            sliding=np.clip(barrier_error/self.boundary_layer,-1.,1.)
+            self.blf_st_nu += -self.blf_st_k2*sliding*dt
+            u=(self.target
+               -self.blf_st_k1*np.sqrt(abs(barrier_error)+1e-9)*sliding
+               +self.blf_st_nu-.2*surface_velocity)
         else: raise ValueError(self.name)
         if safe: u = np.clip(u, 3., 15.)
         return float(np.clip(u, 0., 25.))

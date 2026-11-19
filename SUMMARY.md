@@ -25,7 +25,7 @@ uncapped tissue-demand excursions.
 
 Validated here: 14 regression tests, the imported model, and tissue law
 validation pass; and the
-full 10-seed, 60 s-per-episode MuJoCo suite includes four controllers,
+full 10-seed, 60 s-per-episode MuJoCo suite includes five controllers,
 producing 80 evaluation rows plus estimation, safety/fault, robustness,
 motion-validation, and statistical result tables. Results are
 not clinical evidence: motion events are compressed x20, the imported arm

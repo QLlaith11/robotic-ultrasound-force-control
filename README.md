@@ -21,7 +21,7 @@ Commands:
   is a bounded end-to-end smoke suite.
 * `python -m rusim.cli --stress --output results --seeds 3 --duration 8`
   runs adversarial breathing, tissue mismatch, mass mismatch, torque noise,
-  sensor bias, and sensor dropout cases for all four controllers.
+  sensor bias, and sensor dropout cases for all five controllers.
 
 `results/` contains CSVs, saved gains, paired Wilcoxon/bootstrap statistics,
 bring-up checks, motion validation, and SVG figures. `--backend surrogate`
@@ -37,8 +37,9 @@ applicant information before use.
 
 ## Controller metrics
 
-Controllers are impedance, PI, super-twisting, and barrier-Lyapunov
-sliding-mode control (`blsmc`). The BLSMC law maps the force error into the
+Controllers are impedance, PI, super-twisting, barrier-Lyapunov sliding-mode
+(`blsmc`), and barrier-Lyapunov super-twisting sliding-mode control
+(`blf_stsmc`). The BLSMC law maps the force error into the
 finite barrier coordinate
 `xi = log((F-Fmin)/(Fmax-F))`, applies a bounded sliding correction, and keeps
 the requested normal force inside the configured barrier window. A separate
@@ -49,6 +50,13 @@ simulated robot at 15 N and logs the uncapped constitutive demand separately.
 This makes the delivered-force bound explicit without pretending that the
 uncapped tissue model is physically safe. It remains a simulation safety
 mechanism, not a formal hardware certificate.
+
+The BLF-STSMC variant uses the same barrier coordinate as its sliding variable
+and applies a discrete super-twisting correction:
+`u = Fd - k1*sqrt(|xi|)*sat(xi) + nu - 0.2*v_surface`,
+`nu_dot = -k2*sat(xi)`. The boundary layer limits numerical chattering. It is
+implemented as a sampled-data research controller and is not claimed to have
+a full continuous-time invariance proof for the complete robot-tissue plant.
 
 `results/metrics.csv` reports one row per organ, controller, and seed.
 `rmse`, `mae`, `error_std`, and `p95_abs_error` quantify tracking accuracy and
@@ -75,10 +83,10 @@ rate-dependent tissue force. It is not a hidden rigid floor contact.
 
 Final difficult-trajectory mean RMSE (N), averaged over 10 held-out seeds:
 
-| Organ | Impedance | PI | STA | BLSMC |
-| --- | ---: | ---: | ---: | ---: |
-| Liver | 0.253 | 0.348 | 0.277 | **0.184** |
-| Prostate | 0.666 | **0.507** | 0.598 | 0.643 |
+| Organ | Impedance | PI | STA | BLSMC | BLF-STSMC |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Liver | 0.253 | 0.348 | 0.277 | **0.184** | 0.253 |
+| Prostate | 0.666 | **0.507** | 0.598 | 0.643 | 0.745 |
 
 These are simulation-only results; the condition-dependent ranking is why
 phantom calibration and staged hardware validation are part of the proposed
@@ -92,10 +100,12 @@ Selected mean metrics from the same held-out runs:
 | Liver | PI | 0.199 | 0.461 | 37.982 | 0.0% |
 | Liver | STA | 0.153 | 0.266 | 20.524 | 0.0% |
 | Liver | BLSMC | **0.053** | **0.097** | **20.042** | 0.0% |
+| Liver | BLF-STSMC | 0.131 | 0.232 | 20.521 | 0.0% |
 | Prostate | Impedance | 0.190 | 0.334 | 22.603 | 25.2% |
 | Prostate | PI | 0.223 | 0.455 | 34.307 | **10.9%** |
 | Prostate | STA | 0.210 | 0.409 | 22.619 | 21.2% |
 | Prostate | BLSMC | **0.117** | **0.182** | **22.320** | 24.9% |
+| Prostate | BLF-STSMC | 0.213 | 0.458 | 22.990 | 29.7% |
 
 The hard stress matrix writes `results/stress_test.csv` and reports
 `force_guard_rate`, `hard_limit_violation_rate`, `max_force_excess`,
@@ -103,14 +113,14 @@ The hard stress matrix writes `results/stress_test.csv` and reports
 retractions. A zero delivered-force violation rate means the force-envelope
 layer held the simulated applied force below 15 N; raw demand metrics reveal
 whether the tissue/trajectory combination would have exceeded it.
-In the final 192-episode stress suite, delivered force reached at most 15.0 N
+In the final 240-episode stress suite, delivered force reached at most 15.0 N
 with zero violations; the stiff-tissue and combined-adversary cases produced
 uncapped demands up to 23.7 N, with guard activation concentrated in those
 cases.
 
 ## Visual outputs
 
-The controller dashboard summarizes all four controllers across both organs:
+The controller dashboard summarizes all five controllers across both organs:
 
 ![Controller dashboard](results/figures/controller_dashboard.svg)
 

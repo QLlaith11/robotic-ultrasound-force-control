@@ -90,7 +90,21 @@ def test_barrier_sliding_mode_episode():
     assert result["controller"] == "blsmc"
     assert np.isfinite(result["rmse"])
 
+def test_barrier_super_twisting_controller_is_bounded():
+    c=Controller("blf_stsmc",gains={"barrier_margin":4.0,"blf_st_k1":1.5,"blf_st_k2":2.5})
+    values=[c.command(force,.002) for force in (0.,6.,9.,10.,14.,20.)]
+    assert all(0.0 <= value <= 25.0 for value in values)
+    assert values[0] > values[-1]
+    assert np.isfinite(c.blf_st_nu)
+
+def test_barrier_super_twisting_episode():
+    result=run_episode(duration=.05,controller="blf_stsmc",backend="mujoco",
+                       gains={"barrier_margin":4.0,"blf_st_k1":1.5,"blf_st_k2":2.5},
+                       trajectory_difficulty=1.15)
+    assert result["controller"] == "blf_stsmc"
+    assert np.isfinite(result["rmse"])
+
 def test_safety_guard_stress_output():
     rows=stress_test("results/test_stress.csv",backend="mujoco",seeds=range(1),duration=.2,trajectory_difficulty=2.0)
-    assert len(rows)==64
+    assert len(rows)==80
     assert all(np.isfinite(float(row["max_force_excess"])) for row in rows)

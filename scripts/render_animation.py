@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--output-dir",default="results/animation")
     parser.add_argument("--frames",type=int,default=144)
     parser.add_argument("--fps",type=int,default=12)
-    parser.add_argument("--controller",choices=("impedance","pi","sta","blsmc"),default="blsmc")
+    parser.add_argument("--controller",choices=("impedance","pi","sta","blsmc","blf_stsmc"),default="blf_stsmc")
     args=parser.parse_args()
     output_dir=Path(args.output_dir)
     output_dir.mkdir(parents=True,exist_ok=True)
@@ -37,7 +37,8 @@ def main():
     rng=np.random.default_rng(7)
     controller=Controller(args.controller,gains={"kp":.009,"ki":.25,"k1":1.2,"k2":3.0,
                                                   "barrier_margin":4.0,"barrier_gain":2.0,
-                                                  "switch_gain":1.5})
+                                                  "switch_gain":1.5,"blf_st_k1":1.5,
+                                                  "blf_st_k2":2.5})
     monitor=SafetyMonitor()
     tissue=TissueModel()
     renderer=mujoco.Renderer(model,height=450,width=600)
