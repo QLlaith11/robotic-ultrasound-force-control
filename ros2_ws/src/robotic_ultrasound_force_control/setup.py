@@ -13,6 +13,8 @@ setup(
         ("share/" + package_name + "/config", ["config/digital_twin.yaml"]),
     ],
     install_requires=["setuptools"],
+    tests_require=["pytest"],
+    test_suite="pytest",
     zip_safe=True,
     maintainer="QLlaith11",
     maintainer_email="alshiekhlaith@gmail.com",

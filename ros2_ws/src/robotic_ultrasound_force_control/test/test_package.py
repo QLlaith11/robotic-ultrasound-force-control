@@ -29,3 +29,12 @@ def test_ros_topics_are_declared():
         "/robot/joint_position",
     ):
         assert topic in text
+
+
+def test_friction_parameter_is_applied():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "robotic_ultrasound_force_control"
+        / "mujoco_node.py"
+    ).read_text()
+    assert "dof_frictionloss" in source

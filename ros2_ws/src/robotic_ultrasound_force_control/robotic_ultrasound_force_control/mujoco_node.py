@@ -44,7 +44,7 @@ class MuJoCoNode(Node):
         self.duration = float(self.get_parameter("duration").value)
         self.model = make_model()
         self.model.opt.timestep = 0.001
-        stiffness_scale = stiffness_scale
+        self.model.dof_frictionloss[:] *= friction_scale
         self.data = mujoco.MjData(self.model)
         self.qref = np.array([0.0, 0.5, 0.0, 1.0, 0.0, -1.0, 0.0])
         self.data.qpos[:] = self.qref
