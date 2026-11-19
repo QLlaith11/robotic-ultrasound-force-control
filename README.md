@@ -216,3 +216,126 @@ This is a simulation ROS 2 interface, not a robot-driver integration. Hardware
 requires replacing `mujoco_node` with a real force-sensor and joint-state
 interface and independently validating signal timestamps, calibration, limits,
 emergency stop, and torque commands.
+
+## Mathematical model
+
+### Moving tissue surface
+
+The probe attachment site has vertical position \(z_p(t)\). The moving tissue
+surface is represented by an explicit signed normal displacement:
+
+\[
+z_s(t)=z_0+z_{\mathrm{resp}}(t)+z_{\mathrm{drift}}(t)
+       +z_{\mathrm{event}}(t)+z_{\mathrm{cardiac}}(t).
+\]
+
+Penetration and surface velocity are
+
+\[
+p(t)=\max(0,z_p(t)-z_s(t)), \qquad v_s(t)=\dot z_s(t).
+\]
+
+The contact law is a bounded nonlinear Kelvin--Voigt-like penalty model:
+
+\[
+F_{\mathrm{raw}} =
+k\,p(1+0.2p)+c\,v_s,\qquad
+F_{\mathrm{tissue}}=\min(40,\max(0,F_{\mathrm{raw}})).
+\]
+
+The nominal parameters are \(k=1000\ \mathrm{N/m}\) and
+\(c=8\ \mathrm{N\,s/m}\). Ten millimetres of static penetration therefore
+produces approximately 10 N. The 40 N limit is a numerical model envelope,
+not a clinical tissue limit. In safety-mode stress tests, a separate delivered
+force envelope uses 15 N and records uncapped tissue demand separately.
+
+### Barrier coordinate
+
+The target force is \(F_d=10\) N and the barrier interval is
+\([F_{\min},F_{\max}]=[6,14]\) N. The logarithmic barrier coordinate is
+
+\[
+\xi(F)=\log\left(\frac{F-F_{\min}}{F_{\max}-F}\right).
+\]
+
+The measured force is clipped only inside the open interval for numerical
+stability. As \(F\) approaches either boundary, \(|\xi|\) grows, so the
+controller produces a corrective command before the force reaches the
+barrier.
+
+### Controllers
+
+The BLSMC command is
+
+\[
+u_{\mathrm{BL}}=F_d-k_b\tanh(\xi)
+-k_s\operatorname{sat}(\xi/\phi)-0.2v_s.
+\]
+
+The BLF-STSMC command uses the same barrier coordinate as its sliding variable:
+
+\[
+s=\xi,\qquad
+u_{\mathrm{BLF-ST}}=F_d-k_1\sqrt{|s|}\operatorname{sat}(s/\phi)
+\nu-0.2v_s,
+\]
+\[
+\nu_{k+1}=\nu_k-k_2\operatorname{sat}(s/\phi)\Delta t.
+\]
+
+This is a sampled-data implementation. It is not a formal continuous-time
+invariance proof for the complete robot, actuator, estimator, and tissue
+dynamics.
+
+### Robot torque mapping
+
+The desired normal force is mapped through the attachment-site Jacobian:
+
+\[
+\tau_{\mathrm{normal}}=J_z(q)^\mathsf{T}u.
+\]
+
+Posture stabilization and the imported iiwa actuator limits are applied before
+the torque is submitted to MuJoCo through `qfrc_applied`.
+
+## Results discussion
+
+The evaluation uses held-out seeds: gains are selected on seeds 100--104 and
+the reported benchmark uses seeds 0--9. Each organ/controller pair therefore
+contains ten 60-second MuJoCo episodes with a 1.15 trajectory-difficulty
+factor.
+
+### Tracking
+
+BLSMC is the strongest liver controller: it reduces RMSE to 0.184 N and MAE
+to 0.053 N. PI is the best prostate controller by RMSE at 0.507 N, while
+BLSMC has the lowest prostate MAE and 95th-percentile error. This distinction
+matters: RMSE rewards average tracking, while tail error exposes intermittent
+force excursions.
+
+BLF-STSMC is a genuine combined barrier/super-twisting implementation, but
+the current sampled gains do not improve the study ranking. Its liver RMSE is
+0.253 N and prostate RMSE is 0.745 N. It should therefore be reported as a
+validated research candidate requiring further gain and model analysis, not
+as a superior controller.
+
+### Force exposure and safety
+
+The ordinary benchmark intentionally reports the controllers without the
+15 N delivered-force envelope, so prostate threshold exposure and violations
+remain visible. PI has the lowest prostate exposure at 10.9%; BLF-STSMC has
+the highest at 29.7%. The separate 240-episode safety stress suite enables
+the envelope and records zero delivered-force violations for every controller.
+The uncapped tissue demand reaches 23.7 N in stiff-tissue and combined
+adversary cases. This separates controller tracking from the safety
+supervisor's intervention capability.
+
+### Interpretation
+
+There is no universal winner. The liver motion regime favors BLSMC's
+barrier-shaped correction; the prostate regime favors PI on RMSE and threshold
+exposure, while BLSMC retains better tail-error behavior. The result supports
+condition-aware controller selection and motivates phantom calibration rather
+than a claim of clinical superiority. All results remain simulation evidence:
+the tissue law, reconstructed sensing, force thresholds, and event
+compression require experimental validation.
