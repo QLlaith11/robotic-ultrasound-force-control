@@ -3,13 +3,13 @@
 This package is a reproducible MuJoCo-first study. It uses a 7-DoF
 KUKA LBR iiwa 7 R800 MJCF model downloaded from the BSD-3-Clause
 `mujoco_iiwa7_R800` repository and converted from the ROS `iiwa_stack` URDF,
-1 ms MuJoCo integration, 2 ms controller updates, and explicit compliant
+with 1 ms MuJoCo integration, 2 ms controller updates, and explicit compliant
 tissue force injected through `qfrc_applied`.
 The nominal-vs-true force estimate includes noisy torque sensing and an
 independent consistency estimate. The patient generator is calibrated to the
 supplied paper context: 10 N target,
 liver maxima 11.7–13.2 N, prostate maxima 13.4–21.3 N, and 5.8–12.1 mm
-regular motion. Abrupt events are compressed by x20 (explicitly not clinical
+regular motion. Abrupt events are compressed by ×20 (explicitly not clinical
 time).
 
 Commands:
@@ -39,9 +39,9 @@ applicant information before use.
 
 Controllers are impedance, PI, super-twisting, barrier-Lyapunov sliding-mode
 (`blsmc`), and barrier-Lyapunov super-twisting sliding-mode control
-(`blf_stsmc`). The BLSMC law maps the force error into the
+(`blf_stsmc`). The BLSMC law maps the measured force into the
 finite barrier coordinate
-`xi = log((F-Fmin)/(Fmax-F))`, applies a bounded sliding correction, and keeps
+`xi = log((F - Fmin)/(Fmax - F))`, applies a bounded sliding correction, and keeps
 the requested normal force inside the configured barrier window. A separate
 force governor monitors both the reconstructed estimate and an independent force channel; when the 15 N
 hard study limit is approached it commands active retraction. In safety-mode
@@ -53,8 +53,8 @@ mechanism, not a formal hardware certificate.
 
 The BLF-STSMC variant uses the same barrier coordinate as its sliding variable
 and applies a discrete super-twisting correction:
-`u = Fd - k1*sqrt(|xi|)*sat(xi) + nu - 0.2*v_surface`,
-`nu_dot = -k2*sat(xi)`. The boundary layer limits numerical chattering. It is
+`u = Fd - k1*sqrt(|xi|)*sat(xi/phi) + nu - 0.2*v_s`,
+`nu_dot = -k2*sat(xi/phi)`. The boundary layer `phi` limits numerical chattering. It is
 implemented as a sampled-data research controller and is not claimed to have
 a full continuous-time invariance proof for the complete robot-tissue plant.
 
@@ -129,8 +129,7 @@ The respiratory surface motion used in the experiments is:
 ![Respiratory tissue motion](results/figures/respiratory_motion.svg)
 
 The animation below is a playable GIF rendered by MuJoCo's offscreen renderer
-from
-the imported iiwa MJCF. It uses the same controller-to-force-to-joint-torque
+from the imported iiwa MJCF. It uses the same controller-to-force-to-joint-torque
 path as the benchmark, and the companion
 `robot_breathing_force_control.csv` records true force, estimated force, and
 commanded normal force. It is a dynamic simulation visualization, not a
@@ -146,7 +145,7 @@ the block and the local Z axis directed downward. It follows
 the explicit moving surface in the animation and is disabled for MuJoCo contact
 (`contype="0"` and `conaffinity="0"`). The red marker at the end of the arm is
 the `attachment_site`; the actual normal force is computed by the explicit
-Kelvin--Voigt-like penalty law from penetration at this site and is then
+Kelvin–Voigt-like penalty law from penetration at this site and is then
 converted to joint torque through its Jacobian. These are not a measured
 tissue volume or a rigid colliding red block.
 
@@ -229,6 +228,9 @@ emergency stop, and torque commands.
 
 ## Mathematical model
 
+Throughout, $\operatorname{sat}(x)=\min(1,\max(-1,x))$ is the unit saturation
+function and $\phi>0$ is the boundary-layer width.
+
 ### Moving tissue surface
 
 The probe attachment site has vertical position $z_p(t)$. The moving tissue
@@ -239,22 +241,24 @@ z_s(t)=z_0+z_{\mathrm{resp}}(t)+z_{\mathrm{drift}}(t)
        +z_{\mathrm{event}}(t)+z_{\mathrm{cardiac}}(t).
 $$
 
-Penetration and surface velocity are
+The probe presses down onto the surface from above, so penetration and
+surface velocity are
 
 $$
-p(t)=\max(0,z_p(t)-z_s(t)), \qquad v_s(t)=\dot z_s(t).
+p(t)=\max\bigl(0,\,z_s(t)-z_p(t)\bigr), \qquad v_s(t)=\dot z_s(t).
 $$
 
-The contact law is a bounded nonlinear Kelvin--Voigt-like penalty model:
+The contact law is a bounded nonlinear Kelvin–Voigt-like penalty model:
 
 $$
 F_{\mathrm{raw}} =
-k\,p(1+0.2p)+c\,v_s,\qquad
-F_{\mathrm{tissue}}=\min(40,\max(0,F_{\mathrm{raw}})).
+k\,p\,(1+\beta p)+c\,v_s,\qquad
+F_{\mathrm{tissue}}=\min\bigl(40,\max(0,F_{\mathrm{raw}})\bigr).
 $$
 
-The nominal parameters are $k=1000\ \mathrm{N/m}$ and
-$c=8\ \mathrm{N\,s/m}$. Ten millimetres of static penetration therefore
+The nominal parameters are $k=1000\ \mathrm{N/m}$, $c=8\ \mathrm{N\,s/m}$, and
+$\beta=0.2\ \mathrm{m^{-1}}$ (so the nonlinear term is negligible at
+millimetre-scale penetration). Ten millimetres of static penetration therefore
 produces approximately 10 N. The 40 N limit is a numerical model envelope,
 not a clinical tissue limit. In safety-mode stress tests, a separate delivered
 force envelope uses 15 N and records uncapped tissue demand separately.
@@ -268,8 +272,9 @@ $$
 \xi(F)=\log\left(\frac{F-F_{\min}}{F_{\max}-F}\right).
 $$
 
-The measured force is clipped only inside the open interval for numerical
-stability. As $F$ approaches either boundary, $|\xi|$ grows, so the
+Because $F_d$ is the midpoint of the interval, $\xi(F_d)=0$. The measured
+force is clipped to lie inside the open interval $(F_{\min},F_{\max})$ for
+numerical stability. As $F$ approaches either boundary, $|\xi|$ grows, so the
 controller produces a corrective command before the force reaches the
 barrier.
 
@@ -279,20 +284,21 @@ The BLSMC command is
 
 $$
 u_{\mathrm{BL}}=F_d-k_b\tanh(\xi)
--k_s\operatorname{sat}(\xi/\phi)-0.2v_s.
+-k_s\operatorname{sat}\!\left(\frac{\xi}{\phi}\right)-0.2\,v_s.
 $$
 
 The BLF-STSMC command uses the same barrier coordinate as its sliding variable:
 
 $$
-s=\xi,\qquad
-u_{\mathrm{BLF-ST}}=F_d-k_1\sqrt{|s|}\operatorname{sat}(s/\phi)
-+\nu_k-0.2v_s,
+s_k=\xi(F_k),\qquad
+u_{\mathrm{BLF\text{-}ST},k}=F_d-k_1\sqrt{|s_k|}\,\operatorname{sat}\!\left(\frac{s_k}{\phi}\right)
++\nu_k-0.2\,v_{s,k},
 $$
 $$
-\nu_{k+1}=\nu_k-k_2\operatorname{sat}(s/\phi)\Delta t.
+\nu_{k+1}=\nu_k-k_2\operatorname{sat}\!\left(\frac{s_k}{\phi}\right)\Delta t,
 $$
 
+where $\Delta t=2\ \mathrm{ms}$ is the controller update period.
 This is a sampled-data implementation. It is not a formal continuous-time
 invariance proof for the complete robot, actuator, estimator, and tissue
 dynamics.
@@ -302,16 +308,18 @@ dynamics.
 The desired normal force is mapped through the attachment-site Jacobian:
 
 $$
-\tau_{\mathrm{normal}}=J_z(q)^\mathsf{T}u.
+\tau_{\mathrm{normal}}=J_z(q)^\mathsf{T}u,
 $$
 
+where $J_z(q)\in\mathbb{R}^{1\times 7}$ is the row of the translational
+site Jacobian along the surface normal.
 Posture stabilization and the imported iiwa actuator limits are applied before
 the torque is submitted to MuJoCo through `qfrc_applied`.
 
 ## Results discussion
 
-The evaluation uses held-out seeds: gains are selected on seeds 100--104 and
-the reported benchmark uses seeds 0--9. Each organ/controller pair therefore
+The evaluation uses held-out seeds: gains are selected on seeds 100–104 and
+the reported benchmark uses seeds 0–9. Each organ/controller pair therefore
 contains ten 60-second MuJoCo episodes with a 1.15 trajectory-difficulty
 factor.
 
