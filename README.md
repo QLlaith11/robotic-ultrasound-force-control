@@ -228,7 +228,7 @@ emergency stop, and torque commands.
 
 ## Mathematical model
 
-Throughout, $\operatorname{sat}(x)=\min(1,\max(-1,x))$ is the unit saturation
+Throughout, $\mathrm{sat}(x)=\min(1,\max(-1,x))$ is the unit saturation
 function and $\phi>0$ is the boundary-layer width.
 
 ### Moving tissue surface
@@ -256,7 +256,7 @@ k\,p\,(1+\beta p)+c\,v_s,\qquad
 F_{\mathrm{tissue}}=\min\bigl(40,\max(0,F_{\mathrm{raw}})\bigr).
 $$
 
-The nominal parameters are $k=1000\ \mathrm{N/m}$, $c=8\ \mathrm{N\,s/m}$, and
+The nominal parameters are $k=1000\ \mathrm{N/m}$, $c=8\ \mathrm{N\cdot s/m}$, and
 $\beta=0.2\ \mathrm{m^{-1}}$ (so the nonlinear term is negligible at
 millimetre-scale penetration). Ten millimetres of static penetration therefore
 produces approximately 10 N. The 40 N limit is a numerical model envelope,
@@ -284,18 +284,18 @@ The BLSMC command is
 
 $$
 u_{\mathrm{BL}}=F_d-k_b\tanh(\xi)
--k_s\operatorname{sat}\!\left(\frac{\xi}{\phi}\right)-0.2\,v_s.
+-k_s\mathrm{sat}\left(\frac{\xi}{\phi}\right)-0.2\; v_s.
 $$
 
 The BLF-STSMC command uses the same barrier coordinate as its sliding variable:
 
 $$
 s_k=\xi(F_k),\qquad
-u_{\mathrm{BLF\text{-}ST},k}=F_d-k_1\sqrt{|s_k|}\,\operatorname{sat}\!\left(\frac{s_k}{\phi}\right)
-+\nu_k-0.2\,v_{s,k},
+u_{\mathrm{BLF\text{-}ST},k}=F_d-k_1\sqrt{|s_k|}\;\mathrm{sat}\left(\frac{s_k}{\phi}\right)
++\nu_k-0.2\;v_{s,k},
 $$
 $$
-\nu_{k+1}=\nu_k-k_2\operatorname{sat}\!\left(\frac{s_k}{\phi}\right)\Delta t,
+\nu_{k+1}=\nu_k-k_2\mathrm{sat}\left(\frac{s_k}{\phi}\right)\Delta t,
 $$
 
 where $\Delta t=2\ \mathrm{ms}$ is the controller update period.
